@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Chakra_Petch, Rajdhani, JetBrains_Mono } from "next/font/google";
+import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 
 const display = Chakra_Petch({
@@ -23,6 +24,16 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "xamonx bypass link",
   description: "Bypass sfl.gl, tutwuri.id, dan situs shortlink lainnya.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "xamonx",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#05050d",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -32,7 +43,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id" className={`${display.variable} ${body.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

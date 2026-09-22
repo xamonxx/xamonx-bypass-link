@@ -7,7 +7,18 @@ const POLL_INTERVAL_MS = 250;
 // The real gates are multi-step (e.g. sfl.gl bounces through two
 // khaddavi.net "wait" pages, each with its own ~10s countdown, before
 // reaching sfl.gl/ready/go), so 30s isn't always enough headroom.
-const TIMEOUT_MS = 60_000;
+// Kept below the API route's maxDuration (60s) so this timeout's own
+// graceful error can return before the platform kills the request.
+const TIMEOUT_MS = 45_000;
+
+/**
+ * Thrown only for messages that are safe to show verbatim to end users.
+ * Anything else (launch failures, unexpected Puppeteer/network errors) is
+ * logged server-side and surfaced as a generic message instead — never the
+ * raw internal error, which can contain stack traces, file paths, or
+ * infra-specific details.
+ */
+export class BypassError extends Error {}
 
 /**
  * Runs the same auto-click sequence as hollow.node's main.user.js
@@ -16,7 +27,10 @@ const TIMEOUT_MS = 60_000;
  * host outside the known shortlink domains.
  */
 export async function runBypass(startUrl: string): Promise<string> {
-  const browser = await launchBrowser();
+  const browser = await launchBrowser().catch((err) => {
+    console.error("[runBypass] Browser launch failed:", err);
+    throw new BypassError("Mesin resolusi sedang bermasalah di server. Coba lagi dalam beberapa saat.");
+  });
 
   try {
     const page = await browser.newPage();
@@ -85,9 +99,13 @@ export async function runBypass(startUrl: string): Promise<string> {
       await sleep(POLL_INTERVAL_MS);
     }
 
-    throw new Error(
-      "Timeout: gagal mencapai link tujuan dalam 60 detik. Situs mungkin mengubah struktur halamannya."
+    throw new BypassError(
+      `Timeout: gagal mencapai link tujuan dalam ${TIMEOUT_MS / 1000} detik. Situs mungkin mengubah struktur halamannya.`
     );
+  } catch (err) {
+    if (err instanceof BypassError) throw err;
+    console.error("[runBypass] Unexpected failure:", err);
+    throw new BypassError("Gagal memproses link. Coba lagi dalam beberapa saat.");
   } finally {
     await browser.close();
   }

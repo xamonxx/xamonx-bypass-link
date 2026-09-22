@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isSupportedUrl, runBypass, SUPPORTED_HOSTS } from "@/lib/bypass";
+import { BypassError, isSupportedUrl, runBypass, SUPPORTED_HOSTS } from "@/lib/bypass";
 
 export const runtime = "nodejs";
-// NOTE: Vercel caps this per plan (historically ~10s Hobby / up to 60-300s
-// Pro+, subject to change) — confirm against your actual plan before
-// deploying. If the platform's cap is lower than this, requests get killed
-// mid-flight with a raw platform timeout instead of runBypass's own
-// NODE_ERR_TIMEOUT response.
-export const maxDuration = 90;
+// Capped at 60s to fit Vercel's Hobby plan function duration limit. Keep
+// this in sync with TIMEOUT_MS in lib/bypass.ts (kept lower, with headroom
+// for browser launch + response overhead) so runBypass's own graceful
+// NODE_ERR_TIMEOUT fires before the platform kills the request outright.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -35,7 +34,17 @@ export async function POST(req: NextRequest) {
     const finalUrl = await runBypass(url);
     return NextResponse.json({ finalUrl });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Gagal memproses link.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    // Only BypassError's own curated messages are safe to show verbatim —
+    // anything else (an uncaught exception from a code path that isn't
+    // runBypass's own try/catch) could leak stack traces or infra details,
+    // so it's logged server-side and replaced with a generic message.
+    if (err instanceof BypassError) {
+      return NextResponse.json({ error: err.message }, { status: 502 });
+    }
+    console.error("[api/bypass] Unexpected error:", err);
+    return NextResponse.json(
+      { error: "Terjadi kesalahan tak terduga di server. Coba lagi dalam beberapa saat." },
+      { status: 502 }
+    );
   }
 }
