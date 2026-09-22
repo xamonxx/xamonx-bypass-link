@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "app/api/bypass/route.ts": {
+      "memory": 2048
+    }
+  }
+}

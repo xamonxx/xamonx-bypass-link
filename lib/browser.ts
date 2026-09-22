@@ -58,6 +58,11 @@ export async function launchBrowser(): Promise<Browser> {
       import("@sparticuz/chromium"),
     ]);
 
+    // We never render canvas/WebGL content — disabling it skips extracting
+    // swiftshader and meaningfully cuts memory/CPU use, which matters on a
+    // memory-constrained serverless function.
+    chromium.setGraphicsMode = false;
+
     return puppeteer.launch({
       headless: true,
       args: [...chromium.args, ...extraArgs],
